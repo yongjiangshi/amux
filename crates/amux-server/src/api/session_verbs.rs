@@ -13895,10 +13895,16 @@ fn build_claude_cmd(
     session_flag: &str,
     extra_flags: &str,
 ) -> String {
-    let custom = std::env::var("AMUX_CLAUDE_CMD")
-        .unwrap_or_default()
-        .trim()
-        .to_string();
+    let custom = cfg
+        .get("CC_CMD")
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
+            std::env::var("AMUX_CLAUDE_CMD")
+                .unwrap_or_default()
+                .trim()
+                .to_string()
+        });
     let mut cmd = if custom.is_empty() {
         "claude".to_string()
     } else {
