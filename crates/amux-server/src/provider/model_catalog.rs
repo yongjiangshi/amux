@@ -572,6 +572,48 @@ pub fn catalog() -> Vec<ModelDescriptor> {
     // catalog endpoint the way Muse does.
     add(&mut out, "xai", "grok", "grok", true, &["grok-4.6", "grok-4.5"]);
 
+    // Google Antigravity CLI (agy)
+    add(
+        &mut out,
+        "google",
+        "agy",
+        "coding",
+        true,
+        &[
+            "auto",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+        ],
+    );
+
+    // Qwen Code CLI (qwen)
+    add(
+        &mut out,
+        "alibaba",
+        "qwen",
+        "coding",
+        true,
+        &[
+            "qwen-max",
+            "qwen-coder-plus",
+            "qwen-turbo",
+        ],
+    );
+
+    // Zhipu GLM (cc-glm)
+    add(
+        &mut out,
+        "zhipu",
+        "cc-glm",
+        "coding",
+        true,
+        &[
+            "glm-5.3",
+            "glm-4.5-air",
+            "glm-4-plus",
+        ],
+    );
+
     out
 }
 

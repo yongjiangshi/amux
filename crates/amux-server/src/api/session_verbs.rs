@@ -5632,8 +5632,8 @@ fn render_transcript_records(
 // contract).
 // ---------------------------------------------------------------------------
 
-pub const SESSION_PROVIDERS: [&str; 8] = [
-    "claude", "codex", "gemini", "iterm2", "ollama", "grok", "muse", "opencode",
+pub const SESSION_PROVIDERS: [&str; 11] = [
+    "claude", "codex", "gemini", "iterm2", "ollama", "grok", "muse", "opencode", "agy", "qwen", "cc-glm",
 ];
 const PROVIDER_YOLO_FLAGS: [&str; 4] = [
     "--dangerously-skip-permissions",
@@ -5958,7 +5958,7 @@ fn set_effort_flag(provider: &str, flags: &str, effort: &str) -> Result<String, 
 fn provider_yolo_flag(provider: &str) -> &'static str {
     match provider {
         "codex" | "ollama" => "--dangerously-bypass-approvals-and-sandbox",
-        "gemini" | "muse" => "--yolo",
+        "gemini" | "muse" | "qwen" => "--yolo",
         // OpenCode has no skip-permissions flag; `--auto` auto-approves the
         // permissions that are not explicitly denied.
         "opencode" => "--auto",
@@ -6112,7 +6112,9 @@ fn is_yolo_enabled(flags: &str, cfg: &EnvFile) -> bool {
 pub(crate) fn default_model_for_provider(provider: &str) -> String {
     match provider {
         "codex" => "gpt-5.5".into(),
-        "gemini" => "auto".into(),
+        "gemini" | "agy" => "auto".into(),
+        "qwen" => "qwen-max".into(),
+        "cc-glm" => "glm-5.3".into(),
         // Ollama runs via `codex --oss --local-provider ollama --model <model>`.
         "ollama" => crate::provider::static_providers::ollama_default_model(),
         "grok" => "grok-4.6".into(),
@@ -6285,6 +6287,9 @@ pub fn launch_base_binary(provider: &str) -> &'static str {
         // OpenCode CLI. Terminal-hosted in M0; the structured pump learns it
         // in M1 (crates/amux-server/src/opencode/).
         "opencode" => "opencode",
+        "agy" => "agy",
+        "qwen" => "qwen",
+        "cc-glm" => "cc-glm",
         // claude, iterm2, and anything unknown launch via build_claude_cmd,
         // whose default binary is `claude` (overridable by AMUX_CLAUDE_CMD).
         _ => "claude",
@@ -6872,6 +6877,9 @@ fn provider_label(provider: &str) -> &str {
         "claude" => "Claude Code",
         "codex" => "Codex",
         "gemini" => "Gemini",
+        "agy" => "Antigravity (agy)",
+        "qwen" => "Qwen Code",
+        "cc-glm" => "GLM (cc-glm)",
         "iterm2" => "iTerm2",
         "ollama" => "Ollama",
         "grok" => "Grok",
@@ -15111,6 +15119,17 @@ fn build_claude_cmd(
     session_flag: &str,
     extra_flags: &str,
 ) -> String {
+    build_claude_cmd_with_bin("claude", cfg, flags, default_flags, session_flag, extra_flags)
+}
+
+fn build_claude_cmd_with_bin(
+    base_default: &str,
+    cfg: &EnvFile,
+    flags: &str,
+    default_flags: &str,
+    session_flag: &str,
+    extra_flags: &str,
+) -> String {
     let custom = cfg
         .get("CC_CMD")
         .map(|s| s.trim().to_string())
@@ -15122,7 +15141,7 @@ fn build_claude_cmd(
                 .to_string()
         });
     let mut cmd = if custom.is_empty() {
-        "claude".to_string()
+        base_default.to_string()
     } else {
         custom
     };
@@ -16514,14 +16533,84 @@ pub(crate) async fn start_session(
             // OpenCode (`opencode`). The interactive TUI launches in tmux; the
             // structured headless path is CliProvider::OpenCode. Do NOT fall
             // through to build_claude_cmd — that would launch `claude`.
-            //
-            // The opts are pure (opencode_launch_opts): yolo normalizes to
-            // `--auto`, no model is invented, and `--standalone` always rides
-            // so the worker runs its own server with its own env (the
-            // scoped-context channel + lane isolation; see the helper's doc).
             format!("{base_bin}{}", opencode_launch_opts(&flags, extra_flags))
         }
-        _ => build_claude_cmd(&cfg, &flags, &default_flags, &session_flag, extra_flags) + &rules_opts,
+        "agy" => {
+            let mut aflags = flags.clone();
+            let ayolo = PROVIDER_YOLO_FLAGS.iter().any(|f| aflags.contains(f))
+                || aflags.contains("--dangerously-skip-permissions");
+            if ayolo {
+                aflags = strip_provider_yolo_flags(&aflags);
+            }
+            let mut opts = String::new();
+            if !aflags.is_empty() {
+                opts += &format!(" {}", shell_quote_flags(&aflags));
+            }
+            if !extra_flags.is_empty() {
+                opts += &format!(" {}", shell_quote_flags(extra_flags));
+            }
+            if !opts.contains("--model") && !opts.contains("-m ") {
+                opts += " --model auto";
+            }
+            if ayolo && !opts.contains("--dangerously-skip-permissions") {
+                opts += " --dangerously-skip-permissions";
+            }
+            let logs = logs_dir().to_string_lossy().into_owned();
+            opts += &format!(" --add-dir {}", sh_quote(&logs));
+            let uploads = home().join("uploads");
+            let _ = std::fs::create_dir_all(&uploads);
+            opts += &format!(
+                " --add-dir {}",
+                sh_quote(&uploads.to_string_lossy())
+            );
+            let conv_id = meta_str(&meta, "cc_conversation_id");
+            let session = if !skip_conv_id && !conv_id.is_empty() {
+                format!(" --conversation {}", sh_quote(&conv_id))
+            } else {
+                String::new()
+            };
+            format!("agy{opts}{session}")
+        }
+        "qwen" => {
+            let mut qflags = flags.clone();
+            let qyolo = PROVIDER_YOLO_FLAGS.iter().any(|f| qflags.contains(f))
+                || qflags.contains("--yolo");
+            if qyolo {
+                qflags = strip_provider_yolo_flags(&qflags);
+            }
+            let mut opts = String::new();
+            if !qflags.is_empty() {
+                opts += &format!(" {}", shell_quote_flags(&qflags));
+            }
+            if !extra_flags.is_empty() {
+                opts += &format!(" {}", shell_quote_flags(extra_flags));
+            }
+            if !opts.contains("--model") && !opts.contains("-m ") {
+                opts += " --model qwen-max";
+            }
+            if qyolo && !opts.contains("--yolo") {
+                opts += " --yolo";
+            }
+            let logs = logs_dir().to_string_lossy().into_owned();
+            opts += &format!(" --include-directories {}", sh_quote(&logs));
+            let uploads = home().join("uploads");
+            let _ = std::fs::create_dir_all(&uploads);
+            opts += &format!(
+                " --include-directories {}",
+                sh_quote(&uploads.to_string_lossy())
+            );
+            let conv_id = meta_str(&meta, "cc_conversation_id");
+            let session = if !skip_conv_id && !conv_id.is_empty() {
+                format!(" --resume {}", sh_quote(&conv_id))
+            } else {
+                String::new()
+            };
+            format!("qwen{opts}{session}")
+        }
+        "cc-glm" => {
+            build_claude_cmd_with_bin("cc-glm", &cfg, &flags, &default_flags, &session_flag, extra_flags) + &rules_opts
+        }
+        _ => build_claude_cmd_with_bin("claude", &cfg, &flags, &default_flags, &session_flag, extra_flags) + &rules_opts,
     };
 
     // Shell setup line (py:24532): unset Claude env markers, source profile,
@@ -16534,6 +16623,9 @@ pub(crate) async fn start_session(
         && provider != "grok"
         && provider != "muse"
         && provider != "opencode"
+        && provider != "agy"
+        && provider != "qwen"
+        && provider != "cc-glm"
     {
         shell_rc.push_str("unset CLAUDECODE CLAUDE_CODE_ENTRYPOINT; ");
         if let Ok(t) = std::fs::read_to_string(

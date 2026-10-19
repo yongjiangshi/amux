@@ -393,6 +393,7 @@ impl ProviderAdapter for MuseAdapter {
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // OpenCode
 // ---------------------------------------------------------------------------
 
@@ -455,6 +456,118 @@ impl ProviderAdapter for OpenCodeAdapter {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Google Antigravity CLI (agy)
+// ---------------------------------------------------------------------------
+
+pub struct AgyAdapter;
+
+#[async_trait]
+impl ProviderAdapter for AgyAdapter {
+    fn id(&self) -> ProviderId {
+        ProviderId::new("agy")
+    }
+
+    fn capabilities(&self) -> ProviderCapabilities {
+        ProviderCapabilities {
+            hot_model_switch: false,
+            reports_usage: false,
+            structured_events: false,
+            hooks: false,
+        }
+    }
+
+    async fn usage(&self) -> ProviderUsage {
+        ProviderUsage::unknown(self.id())
+    }
+
+    async fn models(&self) -> Vec<String> {
+        crate::provider::live_catalog::worker_model_ids("agy")
+    }
+
+    fn build_command(&self, _prompt_mode: PromptMode) -> Vec<String> {
+        vec!["agy".into()]
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Qwen Code CLI (qwen)
+// ---------------------------------------------------------------------------
+
+pub struct QwenAdapter;
+
+#[async_trait]
+impl ProviderAdapter for QwenAdapter {
+    fn id(&self) -> ProviderId {
+        ProviderId::new("qwen")
+    }
+
+    fn capabilities(&self) -> ProviderCapabilities {
+        ProviderCapabilities {
+            hot_model_switch: false,
+            reports_usage: false,
+            structured_events: false,
+            hooks: false,
+        }
+    }
+
+    async fn usage(&self) -> ProviderUsage {
+        ProviderUsage::unknown(self.id())
+    }
+
+    async fn models(&self) -> Vec<String> {
+        crate::provider::live_catalog::worker_model_ids("qwen")
+    }
+
+    fn build_command(&self, _prompt_mode: PromptMode) -> Vec<String> {
+        vec!["qwen".into()]
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Zhipu GLM CLI (cc-glm)
+// ---------------------------------------------------------------------------
+
+pub struct CcGlmAdapter;
+
+#[async_trait]
+impl ProviderAdapter for CcGlmAdapter {
+    fn id(&self) -> ProviderId {
+        ProviderId::new("cc-glm")
+    }
+
+    fn capabilities(&self) -> ProviderCapabilities {
+        ProviderCapabilities {
+            hot_model_switch: false,
+            reports_usage: false,
+            structured_events: true,
+            hooks: true,
+        }
+    }
+
+    async fn usage(&self) -> ProviderUsage {
+        ProviderUsage::unknown(self.id())
+    }
+
+    async fn models(&self) -> Vec<String> {
+        crate::provider::live_catalog::worker_model_ids("cc-glm")
+    }
+
+    fn build_command(&self, prompt_mode: PromptMode) -> Vec<String> {
+        match prompt_mode {
+            PromptMode::Interactive => vec!["cc-glm".into()],
+            PromptMode::HeadlessStructured => vec![
+                "cc-glm".into(),
+                "--print".into(),
+                "--input-format".into(),
+                "stream-json".into(),
+                "--output-format".into(),
+                "stream-json".into(),
+                "--verbose".into(),
+            ],
+        }
+    }
+}
 /// Parse `ollama list` output: a header line, then one model per line with
 /// the name as the first whitespace-separated column, e.g.
 /// `llama3:latest    365c0bd3c000    4.7 GB    2 weeks ago`.
@@ -541,6 +654,9 @@ mod tests {
             &OllamaAdapter::default(),
             &GrokAdapter,
             &MuseAdapter,
+            &AgyAdapter,
+            &QwenAdapter,
+            &CcGlmAdapter,
         ] {
             let usage = adapter.usage().await;
             assert_eq!(usage.provider, adapter.id());

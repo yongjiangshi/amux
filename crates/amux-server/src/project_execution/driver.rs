@@ -270,7 +270,7 @@ fn project_effort_flags(provider: &str, effort: &str) -> Option<String> {
         None
     } else if provider == "codex" {
         Some(format!("-c model_reasoning_effort={effort}"))
-    } else if provider == "ollama" {
+    } else if provider == "ollama" || provider == "agy" || provider == "qwen" {
         None
     } else {
         Some(format!("--effort {effort}"))
@@ -278,8 +278,10 @@ fn project_effort_flags(provider: &str, effort: &str) -> Option<String> {
 }
 
 pub(super) fn executor_flags(provider: &str, effort: Option<&str>, full_host_access: bool) -> String {
-    let mut flags = if provider == "claude" {
+    let mut flags = if provider == "claude" || provider == "cc-glm" || provider == "agy" {
         "--dangerously-skip-permissions".to_string()
+    } else if provider == "qwen" {
+        "--yolo".to_string()
     } else if provider == "codex" && full_host_access {
         "--sandbox danger-full-access".to_string()
     } else {
@@ -2479,6 +2481,12 @@ mod command_tests {
             Some("--effort low")
         );
         assert_eq!(super::project_effort_flags("ollama", "low"), None);
+        assert_eq!(super::project_effort_flags("agy", "low"), None);
+        assert_eq!(super::project_effort_flags("qwen", "low"), None);
+        assert_eq!(
+            super::project_effort_flags("cc-glm", "low").as_deref(),
+            Some("--effort low")
+        );
         assert_eq!(super::project_effort_flags("codex", ""), None);
     }
     #[test]

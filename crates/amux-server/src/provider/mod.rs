@@ -156,6 +156,9 @@ pub fn default_registry() -> ProviderRegistry {
     reg.register(Arc::new(static_providers::GrokAdapter));
     reg.register(Arc::new(static_providers::MuseAdapter));
     reg.register(Arc::new(static_providers::OpenCodeAdapter));
+    reg.register(Arc::new(static_providers::AgyAdapter));
+    reg.register(Arc::new(static_providers::QwenAdapter));
+    reg.register(Arc::new(static_providers::CcGlmAdapter));
     reg
 }
 
@@ -264,7 +267,7 @@ mod tests {
     #[test]
     fn default_registry_registers_all_known() {
         let reg = default_registry();
-        assert_eq!(reg.len(), 7);
+        assert_eq!(reg.len(), 10);
         for id in [
             "claude-code",
             "gemini",
@@ -273,6 +276,9 @@ mod tests {
             "grok",
             "muse",
             "opencode",
+            "agy",
+            "qwen",
+            "cc-glm",
         ] {
             assert!(
                 reg.get(&ProviderId::new(id)).is_some(),
@@ -307,7 +313,7 @@ mod tests {
 
         let mut reg = default_registry();
         reg.register(Arc::new(FutureAdapter));
-        assert_eq!(reg.len(), 8);
+        assert_eq!(reg.len(), 11);
         let got = reg.get(&ProviderId::new("a-provider-from-2031")).unwrap();
         assert_eq!(got.id().as_str(), "a-provider-from-2031");
     }
@@ -323,6 +329,9 @@ mod tests {
         assert_eq!(reg.resolve("gemini").unwrap().id().as_str(), "gemini");
         assert_eq!(reg.resolve("grok").unwrap().id().as_str(), "grok");
         assert_eq!(reg.resolve("muse").unwrap().id().as_str(), "muse");
+        assert_eq!(reg.resolve("agy").unwrap().id().as_str(), "agy");
+        assert_eq!(reg.resolve("qwen").unwrap().id().as_str(), "qwen");
+        assert_eq!(reg.resolve("cc-glm").unwrap().id().as_str(), "cc-glm");
         // ...and the schema-default legacy spelling lands on claude-code.
         assert_eq!(reg.resolve("claude").unwrap().id().as_str(), "claude-code");
         assert!(reg.resolve("not-a-provider").is_none());
@@ -395,6 +404,21 @@ mod tests {
             Some("opencode"),
             "the server's binary map and the adapter's interactive argv must agree"
         );
+    }
+
+    #[tokio::test]
+    async fn conformance_agy() {
+        conformance(&static_providers::AgyAdapter).await;
+    }
+
+    #[tokio::test]
+    async fn conformance_qwen() {
+        conformance(&static_providers::QwenAdapter).await;
+    }
+
+    #[tokio::test]
+    async fn conformance_cc_glm() {
+        conformance(&static_providers::CcGlmAdapter).await;
     }
 
     #[test]

@@ -819,6 +819,27 @@ async function _workerModelsFor(provider) {
     const d = await r.json();
     return (d.models || []).filter(Boolean).map(id => ({ id, model_type: 'local' }));
   }
+  if (provider === 'agy') {
+    return [
+      { id: 'auto', model_type: 'flagship', worker_selectable: true },
+      { id: 'gemini-2.5-pro', model_type: 'flagship', worker_selectable: true },
+      { id: 'gemini-2.5-flash', model_type: 'fast', worker_selectable: true },
+    ];
+  }
+  if (provider === 'qwen') {
+    return [
+      { id: 'qwen-max', model_type: 'flagship', worker_selectable: true },
+      { id: 'qwen-coder-plus', model_type: 'coding', worker_selectable: true },
+      { id: 'qwen-turbo', model_type: 'fast', worker_selectable: true },
+    ];
+  }
+  if (provider === 'cc-glm') {
+    return [
+      { id: 'glm-5.3', model_type: 'flagship', worker_selectable: true },
+      { id: 'glm-4.5-air', model_type: 'fast', worker_selectable: true },
+      { id: 'glm-4-plus', model_type: 'flagship', worker_selectable: true },
+    ];
+  }
   const models = await _loadModelCatalog();
   return models.filter(m => m.provider === provider && m.worker_selectable);
 }
@@ -7084,6 +7105,9 @@ function flagValue(flags, flag) {
 function providerLabel(provider) {
   if (provider === 'codex') return 'Codex';
   if (provider === 'gemini') return 'Gemini';
+  if (provider === 'agy') return 'Antigravity';
+  if (provider === 'qwen') return 'Qwen';
+  if (provider === 'cc-glm') return 'GLM';
   if (provider === 'ollama') return 'Ollama';
   if (provider === 'muse') return 'Muse Code';
   if (provider === 'iterm2') return 'iTerm2';
@@ -7099,12 +7123,14 @@ function sessionProvider(s) {
   // muse lane would have shown a Claude badge, a Claude model and Claude's yolo
   // flag while running `muse`. Anything added to SESSION_PROVIDERS server-side
   // belongs here too.
-  return (p === 'codex' || p === 'gemini' || p === 'ollama' || p === 'muse' || p === 'grok' || p === 'iterm2' || p === 'opencode') ? p : 'claude';
+  return (p === 'codex' || p === 'gemini' || p === 'ollama' || p === 'muse' || p === 'grok' || p === 'iterm2' || p === 'opencode' || p === 'agy' || p === 'qwen' || p === 'cc-glm') ? p : 'claude';
 }
 
 function providerDefaultModel(provider) {
   if (provider === 'codex') return 'gpt-6-luna';
-  if (provider === 'gemini') return 'auto';
+  if (provider === 'gemini' || provider === 'agy') return 'auto';
+  if (provider === 'qwen') return 'qwen-max';
+  if (provider === 'cc-glm') return 'glm-5.3';
   if (provider === 'ollama') return 'qwen3.8:27b';
   if (provider === 'grok') return 'grok-4.6';
   if (provider === 'muse') return 'muse-spark-1.3-contributor';
@@ -7124,7 +7150,7 @@ function providerYoloFlag(provider) {
   // muse spells it like gemini, NOT like codex: `--yolo` (it also accepts
   // --disable-approval/--disable-sandbox separately). Sending codex's
   // --dangerously-bypass-approvals-and-sandbox to muse is an unknown flag.
-  if (provider === 'gemini' || provider === 'muse') return '--yolo';
+  if (provider === 'gemini' || provider === 'muse' || provider === 'qwen') return '--yolo';
   // opencode's auto-approve is the boolean `--auto` (no skip-permissions flag).
   if (provider === 'opencode') return '--auto';
   return '--dangerously-skip-permissions';
@@ -10373,7 +10399,10 @@ function editField(session, field, current, provider) {
       {v:'grok',l:'Grok'},
       {v:'ollama',l:'Ollama (local)'},
       {v:'muse',l:'Muse Code'},
-      {v:'opencode',l:'OpenCode'}
+      {v:'opencode',l:'OpenCode'},
+      {v:'agy',l:'Antigravity'},
+      {v:'qwen',l:'Qwen'},
+      {v:'cc-glm',l:'GLM'}
     ];
     sel.innerHTML = '';
     providers.forEach(p => { const o = document.createElement('option'); o.value = p.v; o.textContent = p.l; sel.appendChild(o); });
@@ -15921,7 +15950,7 @@ function _selectWorkerType(id) {
   const t = _workerTypeInfo(id);
   _renderCreateTypeRow();
   const allowed = p => !t.providers || !t.providers.length || t.providers.includes(p);
-  ['claude', 'codex', 'gemini', 'ollama', 'grok', 'muse', 'opencode'].forEach(p => {
+  ['claude', 'codex', 'gemini', 'ollama', 'grok', 'muse', 'opencode', 'agy', 'qwen', 'cc-glm'].forEach(p => {
     const b = document.getElementById('create-provider-' + p);
     if (b) { b.disabled = !allowed(p); b.style.opacity = allowed(p) ? '' : '0.4'; }
   });
@@ -33110,6 +33139,12 @@ function _selectProvider(p) {
   if (_museBtn) _museBtn.classList.toggle('selected', p === 'muse');
   const _opencodeBtn = document.getElementById('create-provider-opencode');
   if (_opencodeBtn) _opencodeBtn.classList.toggle('selected', p === 'opencode');
+  const _agyBtn = document.getElementById('create-provider-agy');
+  if (_agyBtn) _agyBtn.classList.toggle('selected', p === 'agy');
+  const _qwenBtn = document.getElementById('create-provider-qwen');
+  if (_qwenBtn) _qwenBtn.classList.toggle('selected', p === 'qwen');
+  const _ccGlmBtn = document.getElementById('create-provider-cc-glm');
+  if (_ccGlmBtn) _ccGlmBtn.classList.toggle('selected', p === 'cc-glm');
   const _typeHasWorktree = _workerTypeInfo(_createWorkerType).worktree !== 'unsupported';
   document.getElementById('create-branch-enabled').closest('.field-group').style.display = _typeHasWorktree ? '' : 'none';
   document.getElementById('create-worktree-field').style.display = _createDirIsGit && _typeHasWorktree ? '' : 'none';
@@ -33157,6 +33192,12 @@ function openCreate() {
   if (_ollamaBtn0) _ollamaBtn0.classList.remove('selected');
   const _museBtn0 = document.getElementById('create-provider-muse');
   if (_museBtn0) _museBtn0.classList.remove('selected');
+  const _agyBtn0 = document.getElementById('create-provider-agy');
+  if (_agyBtn0) _agyBtn0.classList.remove('selected');
+  const _qwenBtn0 = document.getElementById('create-provider-qwen');
+  if (_qwenBtn0) _qwenBtn0.classList.remove('selected');
+  const _ccGlmBtn0 = document.getElementById('create-provider-cc-glm');
+  if (_ccGlmBtn0) _ccGlmBtn0.classList.remove('selected');
   _loadModelsForCreate('claude');
   document.getElementById('create-branch-enabled').closest('.field-group').style.display = '';
   document.getElementById('create-template-field').style.display = '';
@@ -59227,7 +59268,14 @@ async function _projectsLoad() {
   }
 }
 function _projectModelSuggestions(provider) {
-  const models=provider==='codex'?['gpt-6-luna','gpt-6-sol','gpt-6-astra']:provider==='claude'?['haiku','sonnet','opus']:[];
+  const models = provider === 'codex' ? ['gpt-6-luna','gpt-6-sol','gpt-6-astra']
+    : provider === 'claude' ? ['haiku','sonnet','opus']
+    : provider === 'agy' ? ['auto','gemini-2.5-pro','gemini-2.5-flash']
+    : provider === 'qwen' ? ['qwen-max','qwen-coder-plus','qwen-turbo']
+    : provider === 'cc-glm' ? ['glm-5.3','glm-4.5-air','glm-4-plus']
+    : provider === 'gemini' ? ['auto','gemini-2.5-pro','gemini-2.5-flash']
+    : provider === 'muse' ? ['muse-spark-1.3-contributor','muse-spark-1.3','muse-spark-1.2']
+    : [];
   return models.map(model=>'<option value="'+esc(model)+'"></option>').join('');
 }
 function _projectModelOptions(role,provider) {
@@ -59265,7 +59313,7 @@ function _projectConfig(project) {
     '<div class="project-form-grid">'+
     '<label>Project name<input id="project-name" required pattern="[a-z0-9][a-z0-9_\\-]{0,47}" value="'+esc(project?.name || '')+'" '+(project?'readonly':'')+'></label>'+
     '<label>Repository<span class="ac-wrap" style="display:block"><input id="project-repository" required placeholder="/absolute/path/to/repository" autocomplete="off" autocorrect="off" spellcheck="false" value="'+esc(p.repository)+'" oninput="repoAcFetch(this.value)" onfocus="repoAcFetch(this.value)" onkeydown="repoAcKeydown(event)"><span id="project-repo-ac-list" class="ac-list"></span></span>'+hint('The absolute path to the git checkout this project works in.')+'</label>'+
-    '<label>'+(lead?'Lead worker':'Executor')+' provider<select id="project-provider" onchange="_projectModelOptions(\'executor\',this.value)">'+['claude','codex','gemini','ollama'].map(v=>'<option '+(v===p.executor.provider?'selected':'')+'>'+v+'</option>').join('')+'</select>'+hint(lead?'One persistent worker owns this project until verification or a real human decision.':'Which AI does the work on each task.')+'</label>'+
+    '<label>'+(lead?'Lead worker':'Executor')+' provider<select id="project-provider" onchange="_projectModelOptions(\'executor\',this.value)">'+['claude','codex','gemini','ollama','muse','agy','qwen','cc-glm'].map(v=>'<option '+(v===p.executor.provider?'selected':'')+'>'+v+'</option>').join('')+'</select>'+hint(lead?'One persistent worker owns this project until verification or a real human decision.':'Which AI does the work on each task.')+'</label>'+
     '<label>'+(lead?'Lead worker':'Executor')+' model<input id="project-executor" list="project-executor-models" required value="'+esc(p.executor.model)+'"><datalist id="project-executor-models">'+_projectModelSuggestions(p.executor.provider)+'</datalist></label>'+
     '<label>Verification command<input id="project-verify" required placeholder="./verify.sh" value="'+esc(p.verify_command)+'"></label>'+hint(lead?'Repository check for the committed candidate. The independent outcome checks below decide whether it is ready for review.':'Baseline check after each task, in addition to its own acceptance checks. Whole-project runtime proof is defined below.')+
     '</div>'+

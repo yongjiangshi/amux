@@ -781,6 +781,27 @@ fn shape_all_providers(
             "summary": "OpenCode exposes no usage API; consumption is unknown",
             "windows": [],
         }),
+        json!({
+            "id": "agy", "label": "Antigravity", "available": true,
+            "measured": false, "n_considered": 0, "metered": true,
+            "local": false, "usage_unknown": true,
+            "summary": "Google Antigravity exposes no usage API; consumption is unknown",
+            "windows": [],
+        }),
+        json!({
+            "id": "qwen", "label": "Qwen", "available": true,
+            "measured": false, "n_considered": 0, "metered": true,
+            "local": false, "usage_unknown": true,
+            "summary": "Qwen Code exposes no usage API; consumption is unknown",
+            "windows": [],
+        }),
+        json!({
+            "id": "cc-glm", "label": "GLM", "available": true,
+            "measured": false, "n_considered": 0, "metered": true,
+            "local": false, "usage_unknown": true,
+            "summary": "Zhipu GLM exposes no usage API; consumption is unknown",
+            "windows": [],
+        }),
     ];
     if let Some(obj) = body.as_object_mut() {
         let measured = providers
@@ -2320,7 +2341,7 @@ mod tests {
             },
         );
         let providers = body["providers"].as_array().unwrap();
-        assert_eq!(providers.len(), 7);
+        assert_eq!(providers.len(), 10);
         assert_eq!(
             providers.iter().filter(|p| p["available"] == false).count(),
             3
@@ -2330,14 +2351,14 @@ mod tests {
             true,
             "local usage remains truthful when every subscription probe is unavailable"
         );
-        // Muse has no probe to fail: it exposes no usage API at all, so a dead
-        // Codex/Gemini probe cannot make it unavailable. "Available with unknown
-        // usage" and "unavailable" are different states and the row must not
-        // collapse them — unavailable would read as "muse is broken".
-        let muse = providers.iter().find(|p| p["id"] == "muse").unwrap();
-        assert_eq!(muse["available"], true);
-        assert_eq!(muse["usage_unknown"], true);
-        assert_eq!(muse["measured"], false, "nothing was measured, so say so");
+        // Muse, Agy, Qwen, Cc-Glm have no probe to fail: they expose no usage API at all,
+        // so a dead Codex/Gemini probe cannot make them unavailable.
+        for id in ["muse", "grok", "opencode", "agy", "qwen", "cc-glm"] {
+            let p = providers.iter().find(|p| p["id"] == id).unwrap();
+            assert_eq!(p["available"], true);
+            assert_eq!(p["usage_unknown"], true);
+            assert_eq!(p["measured"], false, "nothing was measured, so say so");
+        }
     }
 
     #[tokio::test]
